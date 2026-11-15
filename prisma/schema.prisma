@@ -1,0 +1,386 @@
+// ============================================
+// CORE TENANCY
+// ============================================
+
+model Organization {
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  domain        String?   @unique
+  logoUrl       String?
+  settings      Json      @default("{}")
+  plan          Plan      @default(FREE)
+  stripeCustomerId String? @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  members       OrganizationMember[]
+  invitations   Invitation[]
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+  subscriptions Subscription[]
+  plugins       OrganizationPlugin[]
+
+  @@index([slug])
+  @@index([stripeCustomerId])
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+  ENTERPRISE
+}
+
+// ============================================
+// USERS & AUTH
+// ============================================
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  emailVerified  DateTime?
+  name           String?
+  avatarUrl      String?
+  passwordHash   String?   // null for OAuth-only users
+  totpSecret     String?   // encrypted (envelope: DEK + KEK)
+  webauthnCreds  WebAuthnCredential[]
+  backupCodes    String[]  // hashed
+  locale         String    @default("en")
+  timezone       String    @default("UTC")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  lastLoginAt    DateTime?
+
+  memberships    OrganizationMember[]
+  sessions       Session[]
+  apiKeys        ApiKey[]
+  auditLogs      AuditLog[]
+
+  @@index([email])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String   @unique // SHA-256 of session token
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@index([revokedAt]) // For cleanup cron: delete revoked > 30 days
+}
+
+model WebAuthnCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      Int      @default(0)
+  transports   String[]
+  name         String?  // user-defined name
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([userId])
+}
+
+// ============================================
+// ORGANIZATION MEMBERSHIP & RBAC
+// ============================================
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role     @default(MEMBER)
+  status         MemberStatus @default(ACTIVE)
+  invitedBy      String?
+  joinedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+  // Custom roles stored in Organization.settings.customRoles
+}
+
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           Role     @default(MEMBER)
+  token          String   @unique
+  invitedBy      String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([token])
+  @@index([email])
+}
+
+// ============================================
+// PERMISSIONS (Resource-Level)
+// ============================================
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "billing:read", "plugins:install"
+  description String
+  category    String   // billing, plugins, members, settings, audit
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  role         Role
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  organizationId String? // null = global, set = org-specific override
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([role, permissionId, organizationId])
+  @@index([role])
+  @@index([organizationId])
+}
+
+// Resource-specific grants (e.g., user X can read project Y)
+model ResourceGrant {
+  id            String   @id @default(cuid())
+  organizationId String
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  principalType PrincipalType
+  principalId   String   // userId or role name
+  resourceType  String   // e.g., "project", "plugin", "api_key"
+  resourceId    String
+  permissions   String[] // array of permission names
+  grantedBy     String
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([organizationId, resourceType, resourceId])
+  @@index([principalType, principalId])
+}
+
+enum PrincipalType {
+  USER
+  ROLE
+}
+
+// ============================================
+// API KEYS
+// ============================================
+
+model ApiKey {
+  id             String   @id @default(cuid())
+  name           String
+  prefix         String   @default("sk_live") // sk_live, sk_test
+  keyHash        String   @unique // SHA-256
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions    String[] // subset of organization permissions (validated by middleware)
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([keyHash])
+}
+
+// ============================================
+// BILLING & SUBSCRIPTIONS
+// ============================================
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stripeSubscriptionId String   @unique
+  stripeCustomerId     String
+  stripePriceId        String
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  canceledAt           DateTime?
+  trialEnd             DateTime?
+  quantity             Int      @default(1)
+  metadata             Json     @default("{}")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([stripeSubscriptionId])
+  @@index([stripeCustomerId])
+  @@index([status])
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  PAUSED
+  UNPAID
+}
+
+model Invoice {
+  id               String   @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stripeInvoiceId  String   @unique
+  amountDue        Int      // in cents
+  amountPaid       Int
+  amountRemaining  Int
+  currency         String   @default("usd")
+  status           InvoiceStatus
+  hostedInvoiceUrl String?
+  invoicePdfUrl    String?
+  periodStart      DateTime
+  periodEnd        DateTime
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([stripeInvoiceId])
+  @@index([status])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+model UsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  metric         String   // e.g., "api_calls", "seats", "storage_gb"
+  quantity       Int
+  timestamp      DateTime @default(now())
+  reportedAt     DateTime?
+  stripeReported Boolean  @default(false)
+
+  @@index([organizationId, metric, timestamp])
+  @@index([subscriptionId])
+  @@index([reportedAt])
+}
+
+// ============================================
+// PLUGIN SYSTEM
+// ============================================
+
+model Plugin {
+  id          String   @id @default(cuid())
+  name        String   @unique // npm-style: @org/plugin-name
+  displayName String
+  description String
+  version     String
+  manifest    Json     // capabilities, permissions, entry points
+  iconUrl     String?
+  authorId    String
+  isOfficial  Boolean  @default(false)
+  isPublic    Boolean  @default(true)
+  downloads   Int      @default(0)
+  rating      Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([authorId])
+  @@index([isPublic])
+}
+
+model OrganizationPlugin {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pluginId       String
+  plugin         Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  version        String
+  config         Json     @default("{}")
+  enabled        Boolean  @default(true)
+  installedBy    String
+  installedAt    DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, pluginId])
+  @@index([organizationId])
+  @@index([pluginId])
+}
+
+// ============================================
+// AUDIT LOG (Append-Only)
+// ============================================
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String   // e.g., "member.invite", "subscription.update", "plugin.install"
+  resourceType   String
+  resourceId     String?
+  metadata       Json     @default("{}") // Validated per action type via Zod schema; sensitive keys redacted
+  ipAddress      String?
+  userAgent      String?
+  severity       Severity @default(INFO)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([severity, createdAt])
+}
+
+enum Severity {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}

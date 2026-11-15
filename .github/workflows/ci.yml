@@ -1,0 +1,87 @@
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: test }
+        ports: [5432:5432]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install --frozen-lockfile
+      - run: bun run db:generate
+      - run: bun run db:push
+      - run: bun run test --coverage
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bun run scan:secrets
+      - run: bun run scan:deps
+      - run: bun run scan:container
+
+  accessibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install --frozen-lockfile
+      - run: bun run test:contrast
+      - run: npx @axe-core/cli http://localhost:3000 --save --dir=a11y-results || true
+      - uses: actions/upload-artifact@v4
+        with: { name: a11y-report, path: a11y-results/ }
+
+  build:
+    needs: [lint, test, security, accessibility]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - uses: actions/upload-artifact@v4
+        with: { name: build, path: .next/ }
+
+  deploy-preview:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amondnet/vercel-action@v25
+        with: { vercel-token: ${{ secrets.VERCEL_TOKEN }} }
+
+  deploy-production:
+    needs: deploy-preview
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: amondnet/vercel-action@v25
+        with: { vercel-token: ${{ secrets.VERCEL_TOKEN }}, vercel-args: '--prod' }

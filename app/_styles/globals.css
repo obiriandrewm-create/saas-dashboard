@@ -1,0 +1,346 @@
+@import "tailwindcss";
+
+/* ============================================
+   DESIGN TOKENS — CSS Variables
+   ============================================ */
+
+@theme {
+  /* Color (OKLCH with sRGB fallback) */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #fafafa;
+  --color-bg-tertiary: #f0f0f0;
+  --color-fg-primary: #1a1a1a;
+  --color-fg-secondary: #737373;
+  --color-fg-muted: #999999;
+  --color-border: #e5e5e5;
+  --color-border-focus: #6366f1;
+  --color-brand: #6366f1;
+  --color-brand-hover: #4f46e5;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-error-bg: #fef2f2;
+
+  @supports (color: oklch(0 0 0)) {
+    --color-bg-primary: oklch(1 0 0);
+    --color-bg-secondary: oklch(0.98 0 0);
+    --color-bg-tertiary: oklch(0.95 0 0);
+    --color-fg-primary: oklch(0.15 0 0);
+    --color-fg-secondary: oklch(0.45 0 0);
+    --color-fg-muted: oklch(0.6 0 0);
+    --color-border: oklch(0.9 0 0);
+    --color-border-focus: oklch(0.55 0.2 260);
+    --color-brand: oklch(0.55 0.2 260);
+    --color-brand-hover: oklch(0.5 0.22 260);
+    --color-success: oklch(0.6 0.18 150);
+    --color-warning: oklch(0.75 0.18 70);
+    --color-error: oklch(0.55 0.22 25);
+    --color-error-bg: oklch(0.97 0.02 25);
+  }
+
+  /* Dark Mode Colors */
+  @media (prefers-color-scheme: dark) {
+    --color-bg-primary: oklch(0.15 0 0);
+    --color-bg-secondary: oklch(0.18 0 0);
+    --color-bg-tertiary: oklch(0.22 0 0);
+    --color-fg-primary: oklch(0.98 0 0);
+    --color-fg-secondary: oklch(0.7 0 0);
+    --color-fg-muted: oklch(0.55 0 0);
+    --color-border: oklch(0.3 0 0);
+    --color-border-focus: oklch(0.65 0.2 260);
+    --color-brand: oklch(0.65 0.2 260);
+    --color-brand-hover: oklch(0.7 0.22 260);
+    --color-success: oklch(0.65 0.18 150);
+    --color-warning: oklch(0.75 0.18 70);
+    --color-error: oklch(0.6 0.22 25);
+    --color-error-bg: oklch(0.25 0.05 25);
+  }
+
+  /* Radius (concentric) */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+
+  /* Shadows (elevation) */
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.03);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.03);
+  --shadow-md: 0 4px 6px rgb(0 0 0 / 0.04), 0 2px 4px rgb(0 0 0 / 0.03);
+  --shadow-lg: 0 10px 15px rgb(0 0 0 / 0.05), 0 4px 6px rgb(0 0 0 / 0.03);
+  --shadow-xl: 0 20px 25px rgb(0 0 0 / 0.06), 0 8px 10px rgb(0 0 0 / 0.04);
+
+  @supports (color: oklch(0 0 0)) {
+    --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.03);
+    --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.05), 0 1px 2px oklch(0 0 0 / 0.03);
+    --shadow-md: 0 4px 6px oklch(0 0 0 / 0.04), 0 2px 4px oklch(0 0 0 / 0.03);
+    --shadow-lg: 0 10px 15px oklch(0 0 0 / 0.05), 0 4px 6px oklch(0 0 0 / 0.03);
+    --shadow-xl: 0 20px 25px oklch(0 0 0 / 0.06), 0 8px 10px oklch(0 0 0 / 0.04);
+  }
+
+  /* Dark Mode Shadows (higher opacity for depth) */
+  @media (prefers-color-scheme: dark) {
+    --shadow-xs: 0 1px 2px oklch(1 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px oklch(1 0 0 / 0.08), 0 1px 2px oklch(1 0 0 / 0.05);
+    --shadow-md: 0 4px 6px oklch(1 0 0 / 0.07), 0 2px 4px oklch(1 0 0 / 0.05);
+    --shadow-lg: 0 10px 15px oklch(1 0 0 / 0.1), 0 4px 6px oklch(1 0 0 / 0.07);
+    --shadow-xl: 0 20px 25px oklch(1 0 0 / 0.12), 0 8px 10px oklch(1 0 0 / 0.08);
+  }
+
+  /* Transitions */
+  --transition-fast: 100ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-normal: 200ms cubic-bezier(0.2, 0, 0, 1);
+  --transition-slow: 300ms cubic-bezier(0.2, 0, 0, 1);
+
+  /* Transition Properties (explicit, no 'transition: all') */
+  --transition-colors: color, background-color, border-color, fill, stroke var(--transition-fast);
+  --transition-transform: transform var(--transition-normal);
+  --transition-opacity: opacity var(--transition-fast);
+  --transition-shadow: box-shadow var(--transition-normal);
+
+  /* Scale on Press */
+  --scale-press: 0.96;
+
+  /* Stagger & Enter/Exit Animations */
+  --stagger-delay: 100ms;
+  --enter-duration: 200ms;
+  --exit-duration: 150ms;
+  --enter-easing: cubic-bezier(0.2, 0, 0, 1);
+  --exit-easing: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Focus Ring System */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-border-focus);
+
+  /* Image Outlines */
+  --image-outline-light: oklch(0 0 0 / 0.1);
+  --image-outline-dark: oklch(1 0 0 / 0.1);
+
+  /* Minimum Hit Areas */
+  --hit-area-touch: 44px;
+  --hit-area-dense: 40px;
+
+  /* Surface Layers (semantic) */
+  --surface-1: var(--color-bg-primary);
+  --surface-2: var(--color-bg-secondary);
+  --surface-3: var(--color-bg-tertiary);
+
+  @media (prefers-color-scheme: dark) {
+    --surface-1: oklch(0.15 0 0);
+    --surface-2: oklch(0.18 0 0);
+    --surface-3: oklch(0.22 0 0);
+  }
+
+  /* Icon Sizing */
+  --icon-xs: 12px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --icon-xl: 32px;
+
+  /* Typography */
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --font-tabular: "Geist Mono", ui-monospace, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.1;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Text Wrapping */
+  --text-wrap-balance: balance;
+  --text-wrap-pretty: pretty;
+}
+
+/* ============================================
+   GLOBAL BASE STYLES
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+/* Reduced Motion - Global Disable */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus Visible - Global */
+:focus-visible {
+  outline: none;
+  ring: var(--focus-ring-width) solid var(--focus-ring-color);
+  ring-offset: var(--focus-ring-offset);
+  ring-offset-background: var(--color-bg-primary);
+}
+
+/* Skip Link */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1rem;
+  background: var(--color-brand);
+  color: white;
+  border-radius: var(--radius-md);
+  z-index: 9999;
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  transition: top var(--transition-fast);
+}
+.skip-link:focus {
+  top: 1rem;
+  outline: none;
+  ring: var(--focus-ring-width) solid var(--focus-ring-color);
+  ring-offset: var(--focus-ring-offset);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-brand);
+  color: white;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fg-muted);
+}
+
+/* ============================================
+   DESIGN SYSTEM UTILITIES
+   ============================================ */
+
+@layer utilities {
+  /* Typography */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-tabular);
+  }
+  .text-wrap-balance { text-wrap: var(--text-wrap-balance); }
+  .text-wrap-pretty { text-wrap: var(--text-wrap-pretty); }
+  .font-normal { font-weight: var(--font-weight-normal); }
+  .font-medium { font-weight: var(--font-weight-medium); }
+  .font-semibold { font-weight: var(--font-weight-semibold); }
+  .font-bold { font-weight: var(--font-weight-bold); }
+
+  /* Surface & Layout */
+  .focus-ring {
+    outline: none;
+    ring: var(--focus-ring-width) solid var(--focus-ring-color);
+    ring-offset: var(--focus-ring-offset);
+    ring-offset-background: var(--color-bg-primary);
+  }
+  .image-outline {
+    outline: 1px solid var(--image-outline-light);
+  }
+  @media (prefers-color-scheme: dark) {
+    .image-outline { outline-color: var(--image-outline-dark); }
+  }
+  .hit-area { min-height: var(--hit-area-touch); min-width: var(--hit-area-touch); }
+  .hit-area-dense { min-height: var(--hit-area-dense); min-width: var(--hit-area-dense); }
+  .surface-1 { background-color: var(--surface-1); }
+  .surface-2 { background-color: var(--surface-2); }
+  .surface-3 { background-color: var(--surface-3); }
+
+  /* Animations */
+  .press-scale {
+    transition: transform var(--transition-fast);
+  }
+  .press-scale:active {
+    transform: scale(var(--scale-press));
+  }
+  .stagger-enter > * {
+    animation: fade-in-up var(--enter-duration) var(--enter-easing) both;
+  }
+  .stagger-enter > *:nth-child(n) {
+    animation-delay: calc(var(--stagger-delay) * (n - 1));
+  }
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .exit-fade {
+    animation: fade-out-down var(--exit-duration) var(--exit-easing) forwards;
+  }
+  @keyframes fade-out-down {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(4px); }
+  }
+  .transition-colors { transition: var(--transition-colors); }
+  .transition-transform { transition: var(--transition-transform); }
+  .transition-opacity { transition: var(--transition-opacity); }
+  .transition-shadow { transition: var(--transition-shadow); }
+
+  /* SR-only (screen reader only) */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .focus\:not-sr-only:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: unset;
+    margin: unset;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
